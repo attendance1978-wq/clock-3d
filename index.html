@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Galactic Hologram Clock</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: black;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  .widget {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    padding: 10px 20px;
+    border-radius: 15px;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+    color: white;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<div class="widget">Galactic Hologram Clock</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+// ---------- Scene & Renderer ----------
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+camera.position.set(0, 2, 8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+
+// ---------- Skybox ----------
+const cubeLoader = new THREE.CubeTextureLoader();
+const skyboxTexture = cubeLoader.load([
+  'skybox/px.jpg',
+  'skybox/nx.jpg',
+  'skybox/py.jpg',
+  'skybox/ny.jpg',
+  'skybox/pz.jpg',
+  'skybox/nz.jpg'
+]);
+scene.background = skyboxTexture;
+
+// ---------- Stars (Twinkle & Parallax) ----------
+const starsGeo = new THREE.BufferGeometry();
+const starCount = 8000;
+const starPositions = new Float32Array(starCount*3);
+for(let i=0;i<starCount*3;i++){
+    starPositions[i] = (Math.random()-0.5)*500;
+}
+starsGeo.setAttribute('position', new THREE.BufferAttribute(starPositions,3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size:0.6, transparent:true });
+const starField = new THREE.Points(starsGeo, starMat);
+scene.add(starField);
+
+// ---------- Directional Sun Light ----------
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+sunLight.position.set(5,10,5);
+scene.add(sunLight);
+
+// ---------- Planet ----------
+const textureLoader = new THREE.TextureLoader();
+const planetTexture = textureLoader.load('textures/planet.jpg');
+const planet = new THREE.Mesh(
+  new THREE.SphereGeometry(0.8,32,32),
+  new THREE.MeshStandardMaterial({ map: planetTexture })
+);
+planet.position.set(-8,4,-20);
+scene.add(planet);
+
+// ---------- Hologram Clock ----------
+const numberRing = new THREE.Mesh(
+  new THREE.TorusGeometry(2.8,0.05,16,100),
+  new THREE.MeshPhysicalMaterial({ color:0x00ffff, metalness:1, roughness:0.2, emissive:0x00ffff, emissiveIntensity:0.2 })
+);
+numberRing.rotation.x = Math.PI/2;
+scene.add(numberRing);
+
+const glowRing = new THREE.Mesh(
+  new THREE.TorusGeometry(2.8,0.05,16,100),
+  new THREE.MeshBasicMaterial({ color:0x00ffff, transparent:true, opacity:0.7 })
+);
+glowRing.rotation.x = Math.PI/2;
+scene.add(glowRing);
+
+const glass = new THREE.Mesh(
+  new THREE.SphereGeometry(3.2,64,64),
+  new THREE.MeshPhysicalMaterial({
+    color:0x00ffff, metalness:0, roughness:0, transmission:1, transparent:true, opacity:0.2, clearcoat:1, reflectivity:1
+  })
+);
+scene.add(glass);
+
+// ---------- Clock Hands ----------
+function createHand(len,w,c){
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w,len,w),
+    new THREE.MeshPhysicalMaterial({ color:c, emissive:c, emissiveIntensity:1, metalness:1, roughness:0.2 })
+  );
+  mesh.position.y = len/2;
+  const pivot = new THREE.Object3D();
+  pivot.add(mesh);
+  scene.add(pivot);
+  return { pivot, mesh };
+}
+
+const hourHand = createHand(1.5,0.15,0xffffff);
+const minuteHand = createHand(2.3,0.1,0x00ffff);
+const secondHand = createHand(2.6,0.05,0xff00ff);
+
+// Second Hand Neon Trail
+const trailCount = 20;
+const trails = [];
+for(let i=0;i<trailCount;i++){
+  const geom = new THREE.CylinderGeometry(0.02,0.02,2.6,8);
+  const mat = new THREE.MeshBasicMaterial({ color:0xff00ff, transparent:true, opacity:0.2*(1-i/trailCount) });
+  const t = new THREE.Mesh(geom,mat);
+  t.position.y = 1.3;
+  secondHand.pivot.add(t);
+  trails.push(t);
+}
+
+// Clock center sphere
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(0.1,32,32), new THREE.MeshBasicMaterial({ color:0xffffff })));
+
+// ---------- Numbers ----------
+const numbersGroup = new THREE.Group();
+scene.add(numbersGroup);
+const fontLoader = new THREE.FontLoader();
+fontLoader.load("https://threejs.org/examples/fonts/helvetiker_regular.typeface.json", function(font){
+  for(let i=1;i<=12;i++){
+    const angle = (i/12)*Math.PI*2;
+    const textGeo = new THREE.TextGeometry(i.toString(),{ font,font,size:0.4,height:0.05 });
+    const textMat = new THREE.MeshBasicMaterial({ color:0x00ffff, emissive:0x00ffff, transparent:true, opacity:0.9 });
+    const textMesh = new THREE.Mesh(textGeo,textMat);
+    textMesh.position.x = Math.sin(angle)*2.8 - 0.15;
+    textMesh.position.y = Math.cos(angle)*2.8 - 0.15;
+    textMesh.position.z = 0.2;
+    textMesh.userData.baseOpacity = 0.9 + Math.random()*0.1;
+    numbersGroup.add(textMesh);
+  }
+});
+
+// ---------- Mouse Interaction ----------
+let raycaster = new THREE.Raycaster();
+let mouse = new THREE.Vector2();
+window.addEventListener("mousemove",(e)=>{
+  mouse.x = (e.clientX/window.innerWidth)*2 -1;
+  mouse.y = -(e.clientY/window.innerHeight)*2 +1;
+});
+
+// ---------- Animation ----------
+let floatTime = 0;
+
+function updateClock(){
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+
+  hourHand.pivot.rotation.z = -(h*Math.PI)/6 - (m*Math.PI)/360;
+  minuteHand.pivot.rotation.z = -(m*Math.PI)/30;
+  secondHand.pivot.rotation.z = -(s*Math.PI)/30;
+
+  for(let i=trailCount-1;i>0;i--){
+    trails[i].material.opacity = trails[i-1].material.opacity;
+  }
+  trails[0].material.opacity = 0.5;
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  updateClock();
+  floatTime += 0.01;
+
+  // Floating hologram
+  scene.position.y = Math.sin(floatTime)*0.3;
+  scene.rotation.y += 0.002;
+
+  // Twinkle stars
+  starMat.opacity = 0.4 + 0.4*Math.sin(floatTime*2);
+
+  // Glow ring
+  glowRing.rotation.z += 0.01;
+  glowRing.material.opacity = 0.5 + Math.sin(floatTime*3)*0.5;
+
+  // Planet orbit
+  planet.position.x = Math.cos(floatTime*0.1)*6 - 8;
+  planet.position.z = Math.sin(floatTime*0.1)*6 - 20;
+
+  // Number pulse
+  numbersGroup.children.forEach((num,i)=>{
+    num.material.opacity = 0.6 + 0.4*Math.sin(floatTime*3 + i*0.5);
+  });
+
+  // Mouse hover glow
+  raycaster.setFromCamera(mouse,camera);
+  const intersects = raycaster.intersectObjects(numbersGroup.children);
+  numbersGroup.children.forEach(n=>{ n.material.opacity = n.userData.baseOpacity; });
+  intersects.forEach(i=>{ i.object.material.opacity = 1.0; });
+
+  controls.update();
+  renderer.render(scene,camera);
+}
+
+animate();
+
+// ---------- Resize ----------
+window.addEventListener("resize",()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+</script>
+
+</body>
+</html>
