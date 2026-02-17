@@ -72,12 +72,12 @@ const sunLight = new THREE.DirectionalLight(0xffffff,1.2);
 sunLight.position.set(5,10,5);
 scene.add(sunLight);
 
-// ---------- Planet ----------
+// ---------- Planet with Panorama Texture ----------
 const textureLoader = new THREE.TextureLoader();
-const planetTexture = textureLoader.load('textures/planet.jpg');
+const planetTexture = textureLoader.load('textures/moon.jpg'); // panoramic texture
 const planet = new THREE.Mesh(
-  new THREE.SphereGeometry(0.8,32,32),
-  new THREE.MeshStandardMaterial({ map:planetTexture })
+  new THREE.SphereGeometry(0.8,64,64), 
+  new THREE.MeshStandardMaterial({ map: planetTexture, metalness:0.2, roughness:0.8 })
 );
 planet.position.set(-8,4,-20);
 scene.add(planet);
@@ -197,9 +197,10 @@ function animate(){
   glowRing.rotation.z += 0.01;
   glowRing.material.opacity = 0.5 + Math.sin(floatTime*3)*0.5;
 
-  // Planet orbit
+  // Planet orbit & slow spin
   planet.position.x = Math.cos(floatTime*0.1)*6 - 8;
   planet.position.z = Math.sin(floatTime*0.1)*6 - 20;
+  planet.rotation.y += 0.001; // spin panorama
 
   // Number pulse
   numbersGroup.children.forEach((num,i)=>{
